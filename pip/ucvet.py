@@ -9,7 +9,7 @@ import pyomo.environ as pyo
 import pandas as pd
 import numpy as np
 
-from reader import get_holidays_input, get_current_stats, read_param_jobs
+from reader import get_calendar_input, get_current_stats, read_param_jobs
 from param import *
 from writer import my_print, save_planning
 
@@ -28,7 +28,8 @@ param_jobs = read_param_jobs()
 people_names = list(param_jobs.columns)
 job_names = list(param_jobs.index)
 
-holiday_requests, index_abort_consult, index_abort_echo = get_holidays_input(sheet_start_month, sheet_start_year)
+holiday_requests, index_abort_consult, index_abort_echo, hospit_cycles = \
+    get_calendar_input(sheet_start_month, sheet_start_year)
 holiday_requests = holiday_requests.loc[:, people_names]
 param_holidays = holiday_requests.replace(2, 1)
 param_flexible = holiday_requests.replace(2, 0)
@@ -42,8 +43,6 @@ single_day_weekend_indexes = list(set([i + 1 for i in index_abort_consult if i >
                                   set([i - 1 for i in index_abort_consult if i > 0]) & set(weekend_days_indexes))
 
 # %% JOBS NAMES & PARAMETERS
-
-echo_weekdays = hospit_days.keys()
 
 hospit_solo_job = job_names.index(hospit_solo_name)
 consult_job = job_names.index(consult_name)
@@ -87,9 +86,9 @@ threshold_prorata_holidays = 7  # TODO JOURS CONTIGUS
 
 # %% LOGS
 
-my_print(['TOLERANCE (en nb de jours)\n', tolerance])
+my_print(['TOLERANCE\n', tolerance])
 my_print(['FORFAIT ECHO\n', pay])
-my_print(['BREAKS\n', breaks])
+my_print(['BREAKS (nb de jours glissants / nb de jours off par personne)\n', breaks])
 my_print(['MAX WE D\'AFFILEE :', max_we_in_a_row])
 my_print(['MAX JOURS CONSECUTIFS :', nb_max_consecutive_days])
 my_print(['ENDOSCOPIE :', do_endo])
@@ -183,7 +182,7 @@ for person in model.index_people:
     for job in model.index_jobs:
         if param_jobs.iloc[job, person] == 0:
             for day in model.index_days:
-                model.qualifications.add(model.x[day, person, job] <= param_jobs.iloc[job, person])
+                model.qualifications.add(model.x[day, person, job] == 0)
 
 model.occupy_everyday_positions = pyo.ConstraintList()
 for day in model.index_days:
@@ -240,7 +239,7 @@ for person in model.index_people:
 # %% ECHO
 model.echo = pyo.ConstraintList()
 for day in model.index_days:
-    if param_holidays.index[day].dayofweek in echo_weekdays:
+    if day in hospit_cycles.keys():
         if day not in index_abort_echo:
             model.echo.add(
                 sum(model.x[day, person, echo_job] for person in model.index_people) == 1
@@ -273,16 +272,14 @@ for day in model.index_days:
 
 # %% CYCLE HOSPIT
 model.cycle_hospit = pyo.ConstraintList()
-for day in model.index_days:
-    for first_day, nb_consecutive_days in hospit_days.items():
-        if get_dow(day) == first_day:
-            for person in model.index_people:
-                for same_cycle_day in range(day + 1, min(day + 1 + nb_consecutive_days, total_days)):
-                    model.cycle_hospit.add(
-                        sum(model.x[day, person, hospit_job] for hospit_job in hospit_jobs)
-                        ==
-                        sum(model.x[same_cycle_day, person, hospit_job] for hospit_job in hospit_jobs)
-                    )
+for first_day, nb_consecutive_days in hospit_cycles.items():
+    for person in model.index_people:
+        for same_cycle_day in range(first_day + 1, min(first_day + nb_consecutive_days, total_days)):
+            model.cycle_hospit.add(
+                sum(model.x[first_day, person, hospit_job] for hospit_job in hospit_jobs)
+                ==
+                sum(model.x[same_cycle_day, person, hospit_job] for hospit_job in hospit_jobs)
+            )
 
 # %% ENDO
 if do_endo:
@@ -305,7 +302,7 @@ if do_endo:
 # %% CONSTRAINTS - SHIFT GOALS / FAIRNESS
 
 model.balance_flat_rate_days = pyo.ConstraintList()
-my_print(['JOURS FORFAIT'])
+my_print(['OBJECTIF JOURS FORFAIT'])
 for person in model.index_people:
     mini_flat_days, maxi_flat_days = get_flat_rate_days_goal(person)
     model.balance_flat_rate_days.add(
@@ -317,7 +314,7 @@ for person in model.index_people:
 my_print([''])
 
 model.balance_hospit_days = pyo.ConstraintList()
-my_print(['JOURS CHENIL'])
+my_print(['OBJECTIF JOURS CHENIL'])
 for person in model.index_people:
     mini_hospit_days, maxi_hospit_days = get_hospit_days_goal(person)
     model.balance_hospit_days.add(
@@ -331,7 +328,7 @@ for person in model.index_people:
 my_print([''])
 
 model.balance_weekend_days = pyo.ConstraintList()
-my_print(['JOURS WEEKEND'])
+my_print(['OBJECTIF JOURS WEEKEND'])
 for person in model.index_people:
     min_weekend_days, max_weekend_days = get_weekend_days_goal(person)
     model.balance_weekend_days.add(
@@ -345,7 +342,7 @@ for person in model.index_people:
 my_print([''])
 
 model.balance_single_weekend_days = pyo.ConstraintList()
-my_print(['JOURS WEEKEND SINGLE'])
+my_print(['OBJECTIF JOURS WEEKEND SINGLE'])
 for person in model.index_people:
     min_single_weekend_days, max_single_weekend_days = get_single_weekend_days_goal(person)
     model.balance_single_weekend_days.add(
@@ -359,7 +356,7 @@ for person in model.index_people:
 my_print([''])
 
 model.balance_echo_pay = pyo.ConstraintList()
-my_print(['SALAIRES ECHO'])
+my_print(['OBJECTIFS SALAIRES ECHO'])
 for person in echo_people:
     mini_echo_pay, maxi_echo_pay = get_echo_pay_goal(person)
     model.balance_echo_pay.add(

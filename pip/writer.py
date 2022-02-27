@@ -104,7 +104,7 @@ def write_excel(planning, result, stats_this_month, stats_cumul):
 
     month_name = Series(planning.index).dt.strftime("%B").mode()[0].title()
     if len(set(planning.values.flatten())) > 1:
-        output += '\n' + 'writing excel doc'
+        output += '\n' + 'SUCCESS - writing excel doc'
         with ExcelWriter(cwd + suffix_time + '_UCVet.xlsx') as my_writer:
             export_as_excel(planning, my_writer, 'Clinic', with_dates=True)
             export_as_excel(result, my_writer, 'People', with_dates=True)
