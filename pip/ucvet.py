@@ -42,6 +42,9 @@ sunday_days_indexes = np.where(sunday_days_map)[0]
 single_day_weekend_indexes = list(set([i + 1 for i in index_abort_consult if i > 0]) & set(weekend_days_indexes) |
                                   set([i - 1 for i in index_abort_consult if i > 0]) & set(weekend_days_indexes))
 
+shift_mort_job = job_names.index(shift_mort_name)
+lousy_sequence_jobs = [job_names.index(job_name) for job_name in lousy_sequence]
+
 # %% JOBS NAMES & PARAMETERS
 
 hospit_solo_job = job_names.index(hospit_solo_name)
@@ -76,29 +79,18 @@ delta_weekend_days = [d - min(weekend_days) for d in weekend_days]
 delta_single_weekend_days = [round(d - np.mean(single_weekend_shifts), 2) for d in single_weekend_shifts]
 delta_hospit_days = [round(d - np.mean(hospit_shifts), 2) for d in hospit_shifts]
 
-# %%  CLINIC PARAMETERS
 
-shift_mort_length = 4
-shift_mort_job = consult_job
-lousy_sequence = [consult_job, hospit_solo_job]
-nb_j_off_default = 5
-threshold_prorata_holidays = 7  # TODO JOURS CONTIGUS
-
-# %% LOGS
-
-my_print(['TOLERANCE\n', tolerance])
-my_print(['FORFAIT ECHO\n', pay])
-my_print(['BREAKS (nb de jours glissants / nb de jours off par personne)\n', breaks])
-my_print(['MAX WE D\'AFFILEE :', max_we_in_a_row])
-my_print(['MAX JOURS CONSECUTIFS :', nb_max_consecutive_days])
-my_print(['ENDOSCOPIE :', do_endo])
-my_print(['CONSULT ANNULEES'] + list(pd.Series(param_holidays.index[index_abort_consult]).dt.strftime('%a %d %B')))
-my_print(['ECHO ANNULEES'] + list(pd.Series(param_holidays.index[index_abort_echo]).dt.strftime('%a %d %B')))
-
+# %% LOGS FUNCTIONS
 
 def goal_print(the_person, goal, mini, maxi):
     my_print([people_names[the_person], "{:.1f} >".format(goal),
               '[' + str(mini) + ', ' + str(maxi) + ']'], end_char=' || ')
+
+
+def my_series_print(s):
+    for the_person in s.index:
+        my_print([the_person, str(s[the_person])], end_char=' || ')
+    my_print('')
 
 
 def get_dow(date):
@@ -107,8 +99,17 @@ def get_dow(date):
 
 # %% SETTING SHIFT TARGETS
 
-availability = param_holidays.sum()
-availability[availability >= total_days - threshold_prorata_holidays] = total_days - nb_j_off_default
+def get_availability(holidays):
+    avail = pd.Series(index=holidays.columns, dtype=int)
+    for name in holidays.columns:
+        for g in itertools.groupby(list(holidays[name])):
+            duration = len(list(g[1]))
+            avail[name] += duration * (g[0] == 1 or duration < threshold_prorata_holidays)
+    return avail
+
+
+availability = get_availability(param_holidays)
+availability[availability > total_days - threshold_prorata_holidays] = total_days - nb_j_off_default
 target_flat_rate = availability / sum(availability) * total_days * 2
 target_hospit = availability / sum(availability) * total_days
 
@@ -119,6 +120,29 @@ min_j_echo = 2 * (availability_echo >= total_days - threshold_prorata_holidays)
 total_echo_pay = total_days * pay[hospit_echo_name] + sum(min_j_echo) * (pay[echo_name] - pay[hospit_echo_name])
 echo_goal = availability_echo / sum(availability_echo) * total_echo_pay
 
+# %% LOG STATE
+my_print(['BREAKS (nb de jours glissants : nb de jours off par personne)\n', breaks])
+my_print(['MAX WE D\'AFFILÉE :', max_we_in_a_row])
+my_print(['MAX JOURS CONSÉCUTIFS :', nb_max_consecutive_days])
+my_print(['SINGLE DAY SHIFTS INTERDITS :', forbid_single_day_shifts])
+my_print(['ENDOSCOPIE :', do_endo])
+my_print('')
+my_print(['FORFAIT ECHO', pay])
+my_print(['CONSULT ANNULÉES'] + list(pd.Series(param_holidays.index[index_abort_consult]).dt.strftime('%a %d %B')))
+my_print(['ECHO ANNULÉES'] + list(pd.Series(param_holidays.index[index_abort_echo]).dt.strftime('%a %d %B')))
+my_print(['SHIFT INTERDIT :', shift_mort_name, 'PENDANT', str(shift_mort_length), 'JOURS'])
+my_print(['SHIFT INTERDIT :', 'SUCCESSION'] + lousy_sequence)
+my_print(['FOURCHETTE TOLERANCE\n', tolerance])
+my_print('')
+my_print(['DELTA WEEKEND DAYS :', delta_weekend_days])
+my_print(['DELTA SINGLE WEEKEND DAYS :', delta_single_weekend_days])
+my_print(['DELTA HOSPIT DAYS :', delta_hospit_days])
+my_print(['AVAILABILITY - SEUIL JOURS CONTIGUS DE VACANCES POUR PRORATA :', threshold_prorata_holidays])
+my_print(['AVAILABILITY - NB JOURS RETIRES PAR DÉFAUT SI PAS DE VACS :', nb_j_off_default])
+my_print(['AVAILABILITY'], end_char=' : ')
+my_series_print(availability)
+
+# %% GOAL FUNCTIONS
 
 def get_weekend_days_goal(the_person):
     goal = (sum(weekend_days_map) * 2 + sum(delta_weekend_days)) / 5 - delta_weekend_days[the_person]
@@ -386,8 +410,6 @@ for person in model.index_people:
 
 # %% NO HEAVY SCHEDULES + INTERFACE
 
-my_print(['SINGLE DAY SHIFTS INTERDITS :', forbid_single_day_shifts])
-
 model.no_shift_de_la_mort = pyo.ConstraintList()
 for day in model.index_days:
     for person in model.index_people:
@@ -401,7 +423,7 @@ model.no_lousy_sequence = pyo.ConstraintList()
 for person in model.index_people:
     for day0 in range(total_days - 1):
         model.no_lousy_sequence.add(
-            model.x[day0, person, lousy_sequence[0]] + model.x[day0 + 1, person, lousy_sequence[1]] <= 1
+            model.x[day0, person, lousy_sequence_jobs[0]] + model.x[day0 + 1, person, lousy_sequence_jobs[1]] <= 1
         )
 
 model.only_screw_full_weekends = pyo.ConstraintList()
@@ -448,6 +470,7 @@ if forbid_single_day_shifts:
                 sum(model.x[1, person, job] for job in model.index_jobs)
                 >= sum(model.x[0, person, job] for job in model.index_jobs)
             )
+
 
 # %% OBJECTIVE
 
@@ -503,17 +526,18 @@ def transform_solved_model_into_result(m):
 
 def run_with_time_limit(seconds):
     start_time = print_time_limit_info(time_limit)
+    id_timestamp = start_time.strftime('%H_%M_%S')
     solver = pyo.SolverFactory('glpk')
     solved = solver.solve(model, timelimit=seconds)
     my_result, my_planning = transform_solved_model_into_result(model)
     my_print(['STATUS', str(solved.solver.termination_condition)])
     print_solved_time_info(start_time)
-    save_planning(my_planning, my_result, stats_so_far)
+    save_planning(my_planning, my_result, stats_so_far, id_timestamp)
     return my_result, my_planning, solved
 
 
 def print_time_limit_info(seconds):
-    my_print(['TIME LIMIT :', humanize.naturaldelta(timedelta(seconds=seconds))])
+    my_print(['\nTIME LIMIT :', humanize.naturaldelta(timedelta(seconds=seconds))])
     now = datetime.now()
     my_print(['STARTED AT', now])
     return now

@@ -1,12 +1,10 @@
 import pandas as pd
 from param import olivier_sheet_id
-from reader import open_sheet_service
+from google_manager import open_google_service
 pd.set_option("max_columns", 10)
 
-service = open_sheet_service()
 
-
-def add_sheets(g_sheet_id, sheet_name):
+def add_sheets(service, g_sheet_id, sheet_name):
     try:
         response = service.spreadsheets().batchUpdate(
             spreadsheetId=g_sheet_id,
@@ -17,4 +15,4 @@ def add_sheets(g_sheet_id, sheet_name):
         print("FAILED CREATING SHEET", sheet_name, e)
 
 
-add_sheets(olivier_sheet_id, 'Sandbox')
+add_sheets(open_google_service('sheets'), olivier_sheet_id, 'Sandbox')

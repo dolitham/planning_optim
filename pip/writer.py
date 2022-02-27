@@ -1,12 +1,11 @@
 from param import *
 from pandas import DataFrame, ExcelWriter, Series
 from numpy import where, concatenate
-from datetime import datetime
+from google_manager import send_result
 
 global output
 
 output = ''
-suffix_time = 'excel/' + datetime.now().strftime('%H%M%S')
 
 
 def my_print(text, end_char='\n'):
@@ -67,7 +66,7 @@ def calculate_stats(result):
     return stats[col_order]
 
 
-def write_excel(planning, result, stats_this_month, stats_cumul):
+def write_excel(planning, result, stats_this_month, stats_cumul, timestamp):
     global output
     colors = dict({"Esther": "#65B7FF",
                    "Gael": "#FFC665",
@@ -105,24 +104,20 @@ def write_excel(planning, result, stats_this_month, stats_cumul):
     month_name = Series(planning.index).dt.strftime("%B").mode()[0].title()
     if len(set(planning.values.flatten())) > 1:
         output += '\n' + 'SUCCESS - writing excel doc'
-        with ExcelWriter(cwd + suffix_time + '_UCVet.xlsx') as my_writer:
+        with ExcelWriter(cwd + files_directory + timestamp + files_suffix) as my_writer:
             export_as_excel(planning, my_writer, 'Clinic', with_dates=True)
             export_as_excel(result, my_writer, 'People', with_dates=True)
             export_as_excel(stats_this_month, my_writer, 'Stats_' + month_name, with_dates=False)
             export_as_excel(stats_cumul, my_writer, 'Cumul_Stats', with_dates=False)
 
 
-def write_output_text():
-    with open(cwd + suffix_time + '_UCVet.txt', 'w') as f:
-        f.write(output)
-
-
-def save_planning(planning, result, stats_so_far):
+def save_planning(planning, result, stats_so_far, timestamp):
     if len(set(planning['Hospit'])) > 1:
         stats_this_month = calculate_stats(result)
         stats_cumul = stats_sum(this_month=stats_this_month, so_far=stats_so_far)
-        write_excel(planning, result, stats_this_month, stats_cumul)
-    write_output_text()
+        write_excel(planning, result, stats_this_month, stats_cumul, timestamp)
+        send_result(timestamp, output)
+
 
 # TODO color first row
 # TODO bold totaux + jours we

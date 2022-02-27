@@ -1,15 +1,10 @@
 from pandas import DataFrame, read_csv
 from datetime import datetime
 import locale
-import os.path
 from numpy import where, append
 from pandas import Series
-from googleapiclient.discovery import build
-from google_auth_oauthlib.flow import InstalledAppFlow
-from google.auth.transport.requests import Request
-from google.oauth2.credentials import Credentials
-
-from param import *
+from param import jobs_path, olivier_sheet_id, calendar_sheet_range, stats_sheet_range, default_cycle_start_days
+from google_manager import open_google_service
 from writer import my_print
 
 locale.setlocale(locale.LC_TIME, "fr_FR")
@@ -19,24 +14,8 @@ def read_param_jobs():
     return read_csv(jobs_path, delimiter=";", index_col=0)
 
 
-def open_sheet_service():
-    scopes = ['https://www.googleapis.com/auth/spreadsheets']
-    cred = None
-    if os.path.exists(cwd + 'token.json'):
-        cred = Credentials.from_authorized_user_file(cwd + 'token.json', scopes)
-    if not cred or not cred.valid:
-        if cred and cred.expired and cred.refresh_token:
-            cred.refresh(Request())
-        else:
-            flow = InstalledAppFlow.from_client_secrets_file(cwd + 'credentials.json', scopes)
-            cred = flow.run_local_server(port=0)
-        with open(cwd + 'token.json', 'w') as token:
-            token.write(cred.to_json())
-    return build('sheets', 'v4', credentials=cred)
-
-
 def read_sheet(sheet_id, sheet_range):
-    service = open_sheet_service()
+    service = open_google_service('sheets')
     result = service.spreadsheets().values().get(spreadsheetId=sheet_id, range=sheet_range).execute()
     return result.get('values', [])
 
@@ -77,7 +56,6 @@ def get_calendar_input(sheet_start_month, year):
     else:
         cycle_start = where(Series(holidays_calendar.index).dt.dayofweek.isin(default_cycle_start_days))[0]
         cycle_type = 'auto'
-    print(cycle_type, cycle_start)
     cycle_len = append((cycle_start[1:] - cycle_start[:-1]), [len(values[0][1:]) - cycle_start[-1]])
     cycles = {a: b for (a, b) in zip(cycle_start, cycle_len)}
     my_print('DEBUT CYCLES HOSPIT & ECHO : ', cycle_type + '\n')
