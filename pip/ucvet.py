@@ -28,8 +28,11 @@ param_jobs = read_param_jobs()
 people_names = list(param_jobs.columns)
 job_names = list(param_jobs.index)
 
-holiday_requests, index_abort_consult, index_abort_echo, hospit_cycles = \
+holiday_requests, index_abort_consult, index_abort_echo, hospit_cycles, cycles_auto = \
     get_calendar_input(sheet_start_month, sheet_start_year)
+my_print('DEBUT CYCLES HOSPIT & ECHO : ', ['custom', 'auto'][cycles_auto] + '\n')
+my_print(list(pd.Series(holiday_requests.index)[hospit_cycles.keys()].dt.strftime('%a %d/%m || ')))
+
 holiday_requests = holiday_requests.loc[:, people_names]
 param_holidays = holiday_requests.replace(2, 1)
 param_flexible = holiday_requests.replace(2, 0)
@@ -143,6 +146,7 @@ my_print(['AVAILABILITY'], end_char=' : ')
 my_series_print(availability)
 
 # %% GOAL FUNCTIONS
+
 
 def get_weekend_days_goal(the_person):
     goal = (sum(weekend_days_map) * 2 + sum(delta_weekend_days)) / 5 - delta_weekend_days[the_person]
@@ -526,13 +530,14 @@ def transform_solved_model_into_result(m):
 
 def run_with_time_limit(seconds):
     start_time = print_time_limit_info(time_limit)
-    id_timestamp = start_time.strftime('%H_%M_%S')
+    run_id = pd.Series(param_holidays.index).dt.strftime("%B").mode()[0].title() + start_time.strftime('_%H%M%S')
+    my_print(['RUN ID', run_id], end_char='\n')
     solver = pyo.SolverFactory('glpk')
     solved = solver.solve(model, timelimit=seconds)
     my_result, my_planning = transform_solved_model_into_result(model)
     my_print(['STATUS', str(solved.solver.termination_condition)])
     print_solved_time_info(start_time)
-    save_planning(my_planning, my_result, stats_so_far, id_timestamp)
+    save_planning(my_planning, my_result, stats_so_far, run_id)
     return my_result, my_planning, solved
 
 

@@ -10,14 +10,14 @@ from google.auth.transport.requests import Request
 from google.oauth2.credentials import Credentials
 from googleapiclient.errors import HttpError
 
-from param import cwd, files_directory, files_suffix
+from param import cwd, files_directory, excel_files_suffix, olivier_sheet_id, calendar_sheet_range, \
+    stats_sheet_range
 from private_param import sender, recipient
 
 
 def open_google_service(mode):
     # mode = 'sheets' or 'gmail'
-    scopes = ['https://www.googleapis.com/auth/gmail.readonly',
-              'https://www.googleapis.com/auth/gmail.send',
+    scopes = ['https://www.googleapis.com/auth/gmail.send',
               'https://www.googleapis.com/auth/spreadsheets']
     cred = None
     if os.path.exists(cwd + 'token.json'):
@@ -60,9 +60,24 @@ def send_message(service, user_id, message):
     return True
 
 
-def send_result(suffix_time, body):
-    print('SEND RESULT', suffix_time)
-    msg = create_message_with_attachment(sender, recipient, 'Planning - ' + suffix_time, body,
-                                         filenames=[files_directory + suffix_time + files_suffix])
+def send_result(file_id, body):
+    print('SEND RESULT', file_id)
+    msg = create_message_with_attachment(sender, recipient,
+                                         'Planning - ' + file_id.replace('_', ' '), body,
+                                         filenames=[files_directory + file_id + excel_files_suffix])
     gmail_service = open_google_service('gmail')
     send_message(gmail_service, 'me', msg)
+
+
+def read_sheet(sheet_id, sheet_range):
+    service = open_google_service('sheets')
+    result = service.spreadsheets().values().get(spreadsheetId=sheet_id, range=sheet_range).execute()
+    return result.get('values', [])
+
+
+def read_calendar_sheet():
+    return read_sheet(olivier_sheet_id, calendar_sheet_range)
+
+
+def read_stats_sheet():
+    return read_sheet(olivier_sheet_id, stats_sheet_range)

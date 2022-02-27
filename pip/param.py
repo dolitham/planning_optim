@@ -4,7 +4,7 @@ stats_sheet_range = 'Statistiques!A1:K7'
 sandbox_sheet_range = 'Sandbox!A1:K7'
 cwd = '/Users/julie/PycharmProjects/misc/pip/'
 files_directory = 'excel/'
-files_suffix = '_UCVet.xlsx'
+excel_files_suffix = '.xlsx'
 jobs_path = cwd + "jobs.csv"
 
 hospit_solo_name = 'Hospit'
