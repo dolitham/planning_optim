@@ -475,8 +475,8 @@ if forbid_single_day_shifts:
                 >= sum(model.x[0, person, job] for job in model.index_jobs)
             )
 
-
 # %% OBJECTIVE
+
 
 def obj_respect_flexible_min_we(m):
     return cost_we_shifts(m) + pyo.summation(m.x) + cost_flexible_ignored(m) + cost_marine_hospit_no_consult(m)
@@ -528,16 +528,17 @@ def transform_solved_model_into_result(m):
     return my_result, my_planning
 
 
-def run_with_time_limit(seconds):
+def run_with_time_limit(seconds, send_email=True):
     start_time = print_time_limit_info(time_limit)
-    run_id = pd.Series(param_holidays.index).dt.strftime("%B").mode()[0].title() + start_time.strftime('_%H%M%S')
+    run_id = pd.Series(param_holidays.index).dt.strftime("%B").mode()[0].title() + start_time.strftime('_%d_%H%M%S')
     my_print(['RUN ID', run_id], end_char='\n')
     solver = pyo.SolverFactory('glpk')
     solved = solver.solve(model, timelimit=seconds)
     my_result, my_planning = transform_solved_model_into_result(model)
     my_print(['STATUS', str(solved.solver.termination_condition)])
     print_solved_time_info(start_time)
-    save_planning(my_planning, my_result, stats_so_far, run_id)
+    if send_email:
+        save_planning(my_planning, my_result, stats_so_far, run_id)
     return my_result, my_planning, solved
 
 
@@ -556,4 +557,4 @@ def print_solved_time_info(time):
 
 # %% RUN CODE
 
-result, planning, opt = run_with_time_limit(time_limit)
+result, planning, opt = run_with_time_limit(time_limit, send_email=True)

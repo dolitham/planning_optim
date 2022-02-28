@@ -13,7 +13,6 @@ def read_param_jobs():
     return read_csv(jobs_path, delimiter=";", index_col=0)
 
 
-
 def format_calendar_from_ucvet_to_df(values, month, year):
     cal = DataFrame(values).replace('i', 0).replace('s', 1).replace('', 2).fillna(2).set_index(0, drop=True).transpose()
     cal["Day"] = cal.iloc[:, 0].astype(int)

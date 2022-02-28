@@ -1,7 +1,10 @@
+import warnings
+
 from param import *
-from pandas import DataFrame, ExcelWriter
-from numpy import where, concatenate
+from pandas import DataFrame, ExcelWriter, Series
+from numpy import where, concatenate, cumsum
 from google_manager import send_result
+warnings.simplefilter(action='ignore', category=Warning)
 
 global output
 
@@ -66,7 +69,28 @@ def calculate_stats(result):
     return stats[col_order]
 
 
-def write_excel(planning, result, stats_this_month, stats_cumul, run_id):
+def format_planning_to_ucvet(planning):
+    dated_planning = planning[planning.columns]
+    dated_planning['Nuit'] = ''
+    nb_lines = dated_planning.shape[1] + 1
+
+    column = list(Series(dated_planning.index).dt.dayofweek)
+    line = [0] + list(cumsum([column[i + 1] < column[i] for i in range(len(column) - 1)]))
+    weeks = dict({u: [index for index, val in enumerate(line) if val == u] for u in set(line)})
+    dated_planning.index = Series(dated_planning.index).dt.strftime('%d-%b')
+
+    ucvet = DataFrame(index=range(6 * len(set(line))), columns=range(8), dtype=str).fillna('')
+    for week_index in weeks.keys():
+        this_week_columns = [0] + [column[i] + 1 for i in weeks[week_index]]
+        this_week = dated_planning.iloc[weeks[week_index]].reset_index().transpose().reset_index()
+        ucvet.iloc[week_index * nb_lines:(week_index + 1) * nb_lines, this_week_columns] = this_week
+    ucvet = ucvet.transpose().set_index(0).transpose().set_index('Days')
+    ucvet.index.names = ['']
+    ucvet.index = Series(ucvet.index).str.replace('Days', '')
+    return ucvet
+
+
+def write_excel(planning, result, stats_this_month, stats_cumul, ucvet, run_id):
     global output
     colors = dict({"Esther": "#65B7FF",
                    "Gael": "#FFC665",
@@ -84,6 +108,7 @@ def write_excel(planning, result, stats_this_month, stats_cumul, run_id):
     def highlight(df):
         weekend_color = 'background-color: {}'.format('#c4c4c4')
         df_attributes = DataFrame('', index=df.index, columns=df.columns)
+
         if 'Days' in df.columns:
             for prefix in {'Sam', 'Dim'}:
                 df_attributes['Days'] = df_attributes['Days'] + \
@@ -104,17 +129,19 @@ def write_excel(planning, result, stats_this_month, stats_cumul, run_id):
     if len(set(planning.values.flatten())) > 1:
         output += '\n' + 'SUCCESS - writing excel doc'
         with ExcelWriter(cwd + files_directory + run_id + excel_files_suffix) as my_writer:
-            export_as_excel(planning, my_writer, 'Clinic', with_dates=True)
-            export_as_excel(result, my_writer, 'People', with_dates=True)
+            export_as_excel(ucvet, my_writer, 'UCVet_' + run_id, with_dates=False)
             export_as_excel(stats_this_month, my_writer, 'Stats_' + run_id, with_dates=False)
-            export_as_excel(stats_cumul, my_writer, 'Cumul_Stats', with_dates=False)
+            export_as_excel(stats_cumul, my_writer, 'Cumul_Stats_' + run_id, with_dates=False)
+            export_as_excel(result, my_writer, 'People_' + run_id, with_dates=True)
+            export_as_excel(planning, my_writer, 'Clinic_' + run_id, with_dates=True)
 
 
 def save_planning(planning, result, stats_so_far, timestamp):
     if len(set(planning['Hospit'])) > 1:
         stats_this_month = calculate_stats(result)
         stats_cumul = stats_sum(this_month=stats_this_month, so_far=stats_so_far)
-        write_excel(planning, result, stats_this_month, stats_cumul, timestamp)
+        ucvet = format_planning_to_ucvet(planning)
+        write_excel(planning, result, stats_this_month, stats_cumul, ucvet, timestamp)
         send_result(timestamp, output)
 
 

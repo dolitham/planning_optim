@@ -1,7 +1,8 @@
 import pandas as pd
 from param import olivier_sheet_id
 from google_manager import open_google_service
-pd.set_option("max_columns", 10)
+pd.set_option("max_columns", 20)
+pd.set_option("display.width", 200)
 
 
 def add_sheets(service, g_sheet_id, sheet_name):
