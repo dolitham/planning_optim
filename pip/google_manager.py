@@ -8,11 +8,11 @@ from googleapiclient.discovery import build
 from google_auth_oauthlib.flow import InstalledAppFlow
 from google.oauth2.credentials import Credentials
 from googleapiclient.errors import HttpError
-
 from param import cwd, files_directory, excel_files_suffix, olivier_sheet_id, calendar_sheet_range, \
     stats_sheet_range
-from private_param import sender, recipient
 
+sender = os.environ.get('sender')
+recipient = os.environ.get('recipient')
 
 def open_google_service(mode):
     # mode = 'sheets' or 'gmail'

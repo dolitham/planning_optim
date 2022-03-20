@@ -17,11 +17,6 @@ locale.setlocale(locale.LC_TIME, "fr_FR")
 pd.set_option("max_columns", 10)
 pd.options.display.float_format = '€{:,.2f}'.format
 
-# %%  PARAM FILES
-
-sheet_start_month = 5
-sheet_start_year = 2022
-
 # %% FILES READING + DIRECT INFERENCES
 
 param_jobs = read_param_jobs()
@@ -60,13 +55,6 @@ echo_people = np.where(param_jobs.iloc[echo_job] > 0)[0]
 hospit_jobs = {hospit_echo_job, hospit_solo_job}
 new_everyday_jobs = [{consult_job}, {hospit_solo_job, hospit_echo_job}]
 flat_rate_jobs = list(itertools.chain.from_iterable(new_everyday_jobs))
-
-# %% OPTIM / MODEL PARAMETERS
-
-time_limit = 60
-weekend_cost = 5
-flexible_request_cost = 100
-malus_no_consult = 50
 
 # %%  PREVIOUS PLANNING PARAMETERS
 
