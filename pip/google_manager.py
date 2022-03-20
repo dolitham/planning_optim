@@ -6,7 +6,6 @@ from email.mime.multipart import MIMEMultipart
 from email.mime.text import MIMEText
 from googleapiclient.discovery import build
 from google_auth_oauthlib.flow import InstalledAppFlow
-from google.auth.transport.requests import Request
 from google.oauth2.credentials import Credentials
 from googleapiclient.errors import HttpError
 
@@ -23,19 +22,16 @@ def open_google_service(mode):
     if os.path.exists(cwd + 'token.json'):
         cred = Credentials.from_authorized_user_file(cwd + 'token.json', scopes)
     if not cred or not cred.valid:
-        if cred and cred.expired and cred.refresh_token:
-            cred.refresh(Request())
-        else:
-            flow = InstalledAppFlow.from_client_secrets_file(cwd + 'credentials.json', scopes)
-            cred = flow.run_local_server(port=0)
+        flow = InstalledAppFlow.from_client_secrets_file(cwd + 'credentials.json', scopes)
+        cred = flow.run_local_server(port=0)
         with open(cwd + 'token.json', 'w') as token:
             token.write(cred.to_json())
     return build(mode, 'v4' if mode == 'sheets' else 'v1', credentials=cred)
 
 
-def create_message_with_attachment(email_from, to, subject, message_text, filenames=None):
+def create_message_with_attachment(email_from, email_to, subject, message_text, filenames=None):
     message = MIMEMultipart()
-    message['to'] = to
+    message['to'] = email_to
     message['from'] = email_from
     message['subject'] = subject
 
@@ -56,17 +52,16 @@ def send_message(service, user_id, message):
     try:
         service.users().messages().send(userId=user_id, body=message).execute()
     except HttpError:
+        print('HTTP ERROR SENDING MESSAGE')
         return False
     return True
 
 
-def send_result(file_id, body):
-    print('SEND RESULT', file_id)
-    msg = create_message_with_attachment(sender, recipient,
-                                         'Planning - ' + file_id.replace('_', ' '), body,
-                                         filenames=[files_directory + file_id + excel_files_suffix])
+def send_result(file_id, body, attach_files=False):
+    msg = create_message_with_attachment(sender, recipient, 'Planning - ' + file_id.replace('_', ' '), body,
+                                         filenames=([files_directory + file_id + excel_files_suffix] if attach_files else []))
     gmail_service = open_google_service('gmail')
-    send_message(gmail_service, 'me', msg)
+    print('Send message result', file_id, send_message(gmail_service, 'me', msg))
 
 
 def read_sheet(sheet_id, sheet_range):

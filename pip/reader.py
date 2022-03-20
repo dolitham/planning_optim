@@ -57,4 +57,9 @@ def get_current_stats(people_names):
     stats = DataFrame(stats).set_index(0)[:-1].transpose()
     stats.columns = ['Name'] + list(stats.columns[1:])
     stats = stats.set_index('Name')[people_names].transpose()
-    return stats.replace('', 0).astype(int)
+    for col in stats:
+        if col == 'Forfait écho':
+            stats[col] = stats[col].str.replace(',', '.').astype(float)
+        else:
+            stats[col] = stats[col].replace('', 0).astype(int)
+    return stats

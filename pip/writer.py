@@ -142,6 +142,8 @@ def save_planning(planning, result, stats_so_far, timestamp):
         stats_cumul = stats_sum(this_month=stats_this_month, so_far=stats_so_far)
         ucvet = format_planning_to_ucvet(planning)
         write_excel(planning, result, stats_this_month, stats_cumul, ucvet, timestamp)
+        send_result(timestamp, output, attach_files=True)
+    else:
         send_result(timestamp, output)
 
 

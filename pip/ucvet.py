@@ -19,7 +19,7 @@ pd.options.display.float_format = '€{:,.2f}'.format
 
 # %%  PARAM FILES
 
-sheet_start_month = 4
+sheet_start_month = 5
 sheet_start_year = 2022
 
 # %% FILES READING + DIRECT INFERENCES
