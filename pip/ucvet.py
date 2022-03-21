@@ -170,7 +170,7 @@ def get_hospit_days_goal(the_person):
 
 def get_echo_pay_goal(the_person):
     goal = echo_goal.loc[people_names[the_person]]
-    mini = int(goal) - .5
+    mini = round(goal - tolerance['echo_pay']/2, 1)
     maxi = mini + tolerance['echo_pay']
     goal_print(the_person, goal, mini, maxi)
     return mini, maxi
@@ -252,51 +252,6 @@ for person in model.index_people:
                 <= max_we_in_a_row
             )
 
-# %% ECHO
-model.echo = pyo.ConstraintList()
-for day in model.index_days:
-    if day in hospit_cycles.keys():
-        if day not in index_abort_echo:
-            model.echo.add(
-                sum(model.x[day, person, echo_job] for person in model.index_people) == 1
-            )
-
-    if day in sunday_days_indexes:
-        model.echo.add(
-            sum(model.x[day, person, echo_job] for person in model.index_people) == 0
-        )
-    else:
-        model.echo.add(
-            sum(2 * model.x[day, person, hospit_echo_job] + model.x[day, person, hospit_solo_job] + model.x[
-                day, person, echo_job]
-                for person in model.index_people
-                )
-            == 2
-        )
-
-"""
-model.noel = pyo.ConstraintList()
-for day in model.index_days:
-    if param_holidays.index[day].day - 1 in abort_echo_days:
-        print(param_holidays.index[day])
-        for person in model.index_people:
-            model.noel.add(
-                sum(model.x[day, person, job] for job in model.index_jobs) == sum(
-                    model.x[day + 1, person, job] for job in model.index_jobs)
-            )
-"""
-
-# %% CYCLE HOSPIT
-model.cycle_hospit = pyo.ConstraintList()
-for first_day, nb_consecutive_days in hospit_cycles.items():
-    for person in model.index_people:
-        for same_cycle_day in range(first_day + 1, min(first_day + nb_consecutive_days, total_days)):
-            model.cycle_hospit.add(
-                sum(model.x[first_day, person, hospit_job] for hospit_job in hospit_jobs)
-                ==
-                sum(model.x[same_cycle_day, person, hospit_job] for hospit_job in hospit_jobs)
-            )
-
 # %% ENDO
 if do_endo:
     endo_job = job_names.index(endo_name)
@@ -315,6 +270,51 @@ if do_endo:
         model.endo.add(
             model.x[day, endo_person, endo_job] == 0
         )
+# %% ECHO
+model.echo = pyo.ConstraintList()
+no_echo_person = np.where(param_jobs.iloc[hospit_echo_job] == 0)[0][0]
+print('NO ECHO PERSON', no_echo_person)
+for day in model.index_days:
+    if day in hospit_cycles.keys() and day not in index_abort_echo:
+        model.echo.add(
+            sum(model.x[day, person, echo_job] for person in model.index_people) == 1
+        )
+    else:
+        model.echo.add(
+            sum(model.x[day, person, echo_job] for person in model.index_people) <=
+            model.x[day, no_echo_person, hospit_solo_job]
+        )
+
+
+    if day in sunday_days_indexes:
+        model.echo.add(
+            sum(model.x[day, person, echo_job] for person in model.index_people) == 0
+        )
+    else:
+        model.echo.add(
+            sum(2 * model.x[day, person, hospit_echo_job] + model.x[day, person, hospit_solo_job] + model.x[
+                day, person, echo_job]
+                for person in model.index_people
+                )
+            == 2
+        )
+
+# %% CYCLE HOSPIT
+model.cycle_hospit = pyo.ConstraintList()
+for first_day, nb_consecutive_days in hospit_cycles.items():
+    for person in model.index_people:
+        for same_cycle_day in range(first_day + 1, min(first_day + nb_consecutive_days, total_days)):
+            model.cycle_hospit.add(
+                sum(model.x[first_day, person, hospit_job] for hospit_job in hospit_jobs)
+                ==
+                sum(model.x[same_cycle_day, person, hospit_job] for hospit_job in hospit_jobs)
+            )
+
+#for day in index_abort_consult:
+#    model.cycle_hospit.add(
+#        model.x[day, no_echo_person, hospit_solo_job] == 0
+#    )
+
 # %% CONSTRAINTS - SHIFT GOALS / FAIRNESS
 
 model.balance_flat_rate_days = pyo.ConstraintList()
@@ -465,7 +465,6 @@ if forbid_single_day_shifts:
 
 # %% OBJECTIVE
 
-
 def obj_respect_flexible_min_we(m):
     return cost_we_shifts(m) + pyo.summation(m.x) + cost_flexible_ignored(m) + cost_marine_hospit_no_consult(m)
 
@@ -517,7 +516,7 @@ def transform_solved_model_into_result(m):
 
 
 def run_with_time_limit(seconds, send_email=True):
-    start_time = print_time_limit_info(time_limit)
+    start_time = print_time_limit_info(seconds)
     run_id = pd.Series(param_holidays.index).dt.strftime("%B").mode()[0].title() + start_time.strftime('_%d_%H%M%S')
     my_print(['RUN ID', run_id], end_char='\n')
     solver = pyo.SolverFactory('glpk')
@@ -545,4 +544,5 @@ def print_solved_time_info(time):
 
 # %% RUN CODE
 
-result, planning, opt = run_with_time_limit(time_limit, send_email=True)
+time_limit_seconds = int(60*time_limit_minutes)
+result, planning, opt = run_with_time_limit(time_limit_seconds, send_email=True)
