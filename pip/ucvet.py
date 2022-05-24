@@ -106,8 +106,9 @@ target_hospit = availability / sum(availability) * total_days
 
 availability_echo = param_holidays.sum()[echo_people]
 availability_echo = availability_echo / 2 + sum(availability_echo) / (2 * len(availability_echo))
+percentage_echo = (100 * availability_echo / sum(availability_echo)).round(0).astype(int)
 
-min_j_echo = 2 * (availability_echo >= total_days - threshold_prorata_holidays)
+min_j_echo = 1 * (availability_echo >= total_days - threshold_prorata_holidays)
 total_echo_pay = total_days * pay[hospit_echo_name] + sum(min_j_echo) * (pay[echo_name] - pay[hospit_echo_name])
 echo_goal = availability_echo / sum(availability_echo) * total_echo_pay
 
@@ -133,11 +134,13 @@ my_print(['AVAILABILITY - NB JOURS RETIRES PAR DÉFAUT SI PAS DE VACS :', nb_j_o
 my_print(['AVAILABILITY'], end_char=' : ')
 my_series_print(availability)
 
+
 # %% GOAL FUNCTIONS
 
 
 def get_weekend_days_goal(the_person):
-    goal = (sum(weekend_days_map) * 2 + sum(delta_weekend_days)) / 5 - delta_weekend_days[the_person]
+    goal = (sum(weekend_days_map) * 2 - len(index_abort_consult) + sum(delta_weekend_days)) / 5 - delta_weekend_days[
+        the_person]
     mini = int(goal) - 1
     maxi = mini + tolerance['we_days']
     goal_print(the_person, goal, mini, maxi)
@@ -170,8 +173,16 @@ def get_hospit_days_goal(the_person):
 
 def get_echo_pay_goal(the_person):
     goal = echo_goal.loc[people_names[the_person]]
-    mini = round(goal - tolerance['echo_pay']/2, 1)
+    mini = round(goal - tolerance['echo_pay'] / 2, 1)
     maxi = mini + tolerance['echo_pay']
+    goal_print(the_person, goal, mini, maxi)
+    return mini, maxi
+
+
+def get_echo_percentage_goal(the_person):
+    goal = percentage_echo.loc[people_names[the_person]]
+    mini = round(goal - tolerance['echo_percentage'] / 2, 1)
+    maxi = mini + tolerance['echo_percentage']
     goal_print(the_person, goal, mini, maxi)
     return mini, maxi
 
@@ -273,7 +284,6 @@ if do_endo:
 # %% ECHO
 model.echo = pyo.ConstraintList()
 no_echo_person = np.where(param_jobs.iloc[hospit_echo_job] == 0)[0][0]
-print('NO ECHO PERSON', no_echo_person)
 for day in model.index_days:
     if day in hospit_cycles.keys() and day not in index_abort_echo:
         model.echo.add(
@@ -284,7 +294,6 @@ for day in model.index_days:
             sum(model.x[day, person, echo_job] for person in model.index_people) <=
             model.x[day, no_echo_person, hospit_solo_job]
         )
-
 
     if day in sunday_days_indexes:
         model.echo.add(
@@ -300,6 +309,7 @@ for day in model.index_days:
         )
 
 # %% CYCLE HOSPIT
+
 model.cycle_hospit = pyo.ConstraintList()
 for first_day, nb_consecutive_days in hospit_cycles.items():
     for person in model.index_people:
@@ -309,11 +319,6 @@ for first_day, nb_consecutive_days in hospit_cycles.items():
                 ==
                 sum(model.x[same_cycle_day, person, hospit_job] for hospit_job in hospit_jobs)
             )
-
-#for day in index_abort_consult:
-#    model.cycle_hospit.add(
-#        model.x[day, no_echo_person, hospit_solo_job] == 0
-#    )
 
 # %% CONSTRAINTS - SHIFT GOALS / FAIRNESS
 
@@ -390,6 +395,37 @@ for person in echo_people:
     )
 my_print([''])
 
+"""
+model.balance_echo_percentage = pyo.ConstraintList()
+my_print(['OBJECTIFS POURCENTAGES ECHO'])
+for person in echo_people:
+    mini_echo_percentage, maxi_echo_percentage = get_echo_percentage_goal(person)
+    model.balance_echo_percentage.add(
+        mini_echo_percentage / 100 * (
+                pay[echo_name] * sum(model.x[day, person, echo_job] for day in model.index_days) +
+                pay[hospit_echo_name] * sum(model.x[day, person, hospit_echo_job] for day in model.index_days)
+        )
+        <=
+        pay[echo_name] * sum(
+            model.x[day, the_person, echo_job] for day in model.index_days for the_person in model.index_people) +
+        pay[hospit_echo_name] * sum(
+            model.x[day, the_person, hospit_echo_job] for day in model.index_days for the_person in model.index_people)
+    )
+
+    model.balance_echo_percentage.add(
+        pay[echo_name] * sum(
+            model.x[day, the_person, echo_job] for day in model.index_days for the_person in model.index_people) +
+        pay[hospit_echo_name] * sum(
+            model.x[day, the_person, hospit_echo_job] for day in model.index_days for the_person in model.index_people)
+        <=
+        maxi_echo_percentage / 100 * (
+                pay[echo_name] * sum(model.x[day, person, echo_job] for day in model.index_days) +
+                pay[hospit_echo_name] * sum(model.x[day, person, hospit_echo_job] for day in model.index_days)
+        )
+    )
+
+my_print([''])
+"""
 # %% NO ECHO ON WEEKENDS
 
 model.no_echo_on_weekends = pyo.ConstraintList()
@@ -462,6 +498,7 @@ if forbid_single_day_shifts:
                 sum(model.x[1, person, job] for job in model.index_jobs)
                 >= sum(model.x[0, person, job] for job in model.index_jobs)
             )
+
 
 # %% OBJECTIVE
 
@@ -544,5 +581,5 @@ def print_solved_time_info(time):
 
 # %% RUN CODE
 
-time_limit_seconds = int(60*time_limit_minutes)
+time_limit_seconds = int(60 * time_limit_minutes)
 result, planning, opt = run_with_time_limit(time_limit_seconds, send_email=True)

@@ -4,6 +4,8 @@ from email import encoders
 from email.mime.base import MIMEBase
 from email.mime.multipart import MIMEMultipart
 from email.mime.text import MIMEText
+
+from google.auth.transport.requests import Request
 from googleapiclient.discovery import build
 from google_auth_oauthlib.flow import InstalledAppFlow
 from google.oauth2.credentials import Credentials
@@ -11,20 +13,27 @@ from googleapiclient.errors import HttpError
 from param import cwd, files_directory, excel_files_suffix, olivier_sheet_id, calendar_sheet_range, \
     stats_sheet_range
 
+username = 'ucvet'
 sender = os.environ.get('sender')
 recipient = os.environ.get('recipient')
+
 
 def open_google_service(mode):
     # mode = 'sheets' or 'gmail'
     scopes = ['https://www.googleapis.com/auth/gmail.send',
               'https://www.googleapis.com/auth/spreadsheets']
     cred = None
-    if os.path.exists(cwd + 'token.json'):
-        cred = Credentials.from_authorized_user_file(cwd + 'token.json', scopes)
+    if os.path.exists(cwd + 'token_' + username + '.json'):
+        cred = Credentials.from_authorized_user_file(cwd + 'token_' + username + '.json', scopes)
     if not cred or not cred.valid:
-        flow = InstalledAppFlow.from_client_secrets_file(cwd + 'credentials.json', scopes)
-        cred = flow.run_local_server(port=0)
-        with open(cwd + 'token.json', 'w') as token:
+        if cred and cred.expired and cred.refresh_token:
+            print('REFRESHING TOKEN')
+            cred.refresh(Request())
+        else:
+            flow = InstalledAppFlow.from_client_secrets_file(
+                'credentials_' + username + '.json', scopes)
+            cred = flow.run_local_server(port=0)
+        with open('token_' + username + '.json', 'w') as token:
             token.write(cred.to_json())
     return build(mode, 'v4' if mode == 'sheets' else 'v1', credentials=cred)
 
@@ -59,7 +68,8 @@ def send_message(service, user_id, message):
 
 def send_result(file_id, body, attach_files=False):
     msg = create_message_with_attachment(sender, recipient, 'Planning - ' + file_id.replace('_', ' '), body,
-                                         filenames=([files_directory + file_id + excel_files_suffix] if attach_files else []))
+                                         filenames=(
+                                             [files_directory + file_id + excel_files_suffix] if attach_files else []))
     gmail_service = open_google_service('gmail')
     print('Send message result', file_id, send_message(gmail_service, 'me', msg))
 
