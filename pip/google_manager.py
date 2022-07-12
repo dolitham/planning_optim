@@ -10,16 +10,15 @@ from googleapiclient.discovery import build
 from google_auth_oauthlib.flow import InstalledAppFlow
 from google.oauth2.credentials import Credentials
 from googleapiclient.errors import HttpError
-from param import cwd, files_directory, excel_files_suffix, olivier_sheet_id, calendar_sheet_range, \
+from param import files_directory, excel_files_suffix, olivier_sheet_id, calendar_sheet_range, \
     stats_sheet_range
+from private_param import *
 
 username = 'ucvet'
-sender = os.environ.get('sender')
-recipient = os.environ.get('recipient')
 
 
 def open_google_service(mode):
-    # mode = 'sheets' or 'gmail'
+    # mode = 'sheets' or 'gmail' or 'cal'
     scopes = ['https://www.googleapis.com/auth/gmail.send',
               'https://www.googleapis.com/auth/spreadsheets']
     cred = None
@@ -47,12 +46,13 @@ def create_message_with_attachment(email_from, email_to, subject, message_text, 
     msg = MIMEText(message_text)
     message.attach(msg)
 
-    for file in filenames:
-        part = MIMEBase('application', 'octet-stream')
-        part.set_payload(open(file, 'rb').read())
-        encoders.encode_base64(part)
-        part.add_header('Content-Disposition', 'attachment', filename=file.split('/')[-1])
-        message.attach(part)
+    if filenames:
+        for file in filenames:
+            part = MIMEBase('application', 'octet-stream')
+            part.set_payload(open(file, 'rb').read())
+            encoders.encode_base64(part)
+            part.add_header('Content-Disposition', 'attachment', filename=file.split('/')[-1])
+            message.attach(part)
 
     return {'raw': base64.urlsafe_b64encode(message.as_string().encode()).decode()}
 
@@ -60,10 +60,17 @@ def create_message_with_attachment(email_from, email_to, subject, message_text, 
 def send_message(service, user_id, message):
     try:
         service.users().messages().send(userId=user_id, body=message).execute()
-    except HttpError:
+    except HttpError as e:
         print('HTTP ERROR SENDING MESSAGE')
+        print(e)
         return False
     return True
+
+
+def create_and_send_message(subject, message_text, filenames=None):
+    msg = create_message_with_attachment(sender, recipient, subject, message_text, filenames=filenames)
+    gmail_service = open_google_service('gmail')
+    send_message(gmail_service, 'me', msg)
 
 
 def send_result(file_id, body, attach_files=False):

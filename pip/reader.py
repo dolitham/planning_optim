@@ -3,8 +3,9 @@ from datetime import datetime
 import locale
 from numpy import where, append
 from pandas import Series
-from param import jobs_path, default_cycle_start_days
+from param import default_cycle_start_days
 from google_manager import read_calendar_sheet, read_stats_sheet
+from private_param import jobs_path
 
 locale.setlocale(locale.LC_TIME, "fr_FR")
 
@@ -54,7 +55,7 @@ def get_calendar_input(sheet_start_month, year):
 
 def get_current_stats(people_names):
     stats = read_stats_sheet()
-    stats = DataFrame(stats).set_index(0)[:-1].transpose()
+    stats = DataFrame(stats).set_index(0).transpose()
     stats.columns = ['Name'] + list(stats.columns[1:])
     stats = stats.set_index('Name')[people_names].transpose()
     for col in stats:

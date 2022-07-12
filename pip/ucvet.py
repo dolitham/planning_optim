@@ -1,6 +1,7 @@
 # %% IMPORTS + DISPLAY SETTING
 
 import itertools
+from calendar import day_name
 from datetime import datetime
 from datetime import timedelta
 import humanize
@@ -91,7 +92,7 @@ def get_dow(date):
 # %% SETTING SHIFT TARGETS
 
 def get_availability(holidays):
-    avail = pd.Series(index=holidays.columns, dtype=int)
+    avail = pd.Series(index=holidays.columns, dtype=int).fillna(0)
     for name in holidays.columns:
         for g in itertools.groupby(list(holidays[name])):
             duration = len(list(g[1]))
@@ -119,12 +120,15 @@ my_print(['MAX JOURS CONSÉCUTIFS :', nb_max_consecutive_days])
 my_print(['SINGLE DAY SHIFTS INTERDITS :', forbid_single_day_shifts])
 my_print(['ENDOSCOPIE :', do_endo])
 my_print('')
-my_print(['FORFAIT ECHO', pay])
-my_print(['CONSULT ANNULÉES'] + list(pd.Series(param_holidays.index[index_abort_consult]).dt.strftime('%a %d %B')))
-my_print(['ECHO ANNULÉES'] + list(pd.Series(param_holidays.index[index_abort_echo]).dt.strftime('%a %d %B')))
+my_print(['FORFAIT ECHO :', pay])
+my_print(['CONSULT ANNULÉES :'] + list(pd.Series(param_holidays.index[index_abort_consult]).dt.strftime('%a %d %B')))
+my_print(['ECHO ANNULÉES :'] + list(pd.Series(param_holidays.index[index_abort_echo]).dt.strftime('%a %d %B')))
 my_print(['SHIFT INTERDIT :', shift_mort_name, 'PENDANT', str(shift_mort_length), 'JOURS'])
 my_print(['SHIFT INTERDIT :', 'SUCCESSION'] + lousy_sequence)
-my_print(['FOURCHETTE TOLERANCE\n', tolerance])
+for person_name, jobs_exc_dict in jobs_exceptions.items():
+    for job_name, dows in jobs_exc_dict.items():
+        my_print('SHIFT INTERDIT : ' + person_name + ' - ' + job_name + ' LES ' + ', '.join([day_name[u] + 's' for u in dows]))
+my_print(['FOURCHETTE TOLERANCE :\n', tolerance])
 my_print('')
 my_print(['DELTA WEEKEND DAYS :', delta_weekend_days])
 my_print(['DELTA SINGLE WEEKEND DAYS :', delta_single_weekend_days])
@@ -134,7 +138,7 @@ my_print(['AVAILABILITY - NB JOURS RETIRES PAR DÉFAUT SI PAS DE VACS :', nb_j_o
 my_print(['AVAILABILITY'], end_char=' : ')
 my_series_print(availability)
 
-
+  
 # %% GOAL FUNCTIONS
 
 
@@ -204,12 +208,21 @@ for day in model.index_days:
     for job in model.index_jobs:
         model.one_person_per_job.add(sum(model.x[day, person, job] for person in model.index_people) <= 1)
 
+
 model.qualifications = pyo.ConstraintList()
 for person in model.index_people:
+    person_name = people_names[person]
     for job in model.index_jobs:
+        job_name = job_names[job]
         if param_jobs.iloc[job, person] == 0:
             for day in model.index_days:
                 model.qualifications.add(model.x[day, person, job] == 0)
+        elif people_names[person] in jobs_exceptions:
+            for day in model.index_days:
+                if job_name in jobs_exceptions[person_name].keys():
+                    if get_dow(day) in jobs_exceptions[person_name][job_name]:
+                        model.qualifications.add(model.x[day, person, job] == 0)
+
 
 model.occupy_everyday_positions = pyo.ConstraintList()
 for day in model.index_days:
@@ -362,19 +375,21 @@ for person in model.index_people:
     )
 my_print([''])
 
-model.balance_single_weekend_days = pyo.ConstraintList()
-my_print(['OBJECTIF JOURS WEEKEND SINGLE'])
-for person in model.index_people:
-    min_single_weekend_days, max_single_weekend_days = get_single_weekend_days_goal(person)
-    model.balance_single_weekend_days.add(
-        sum(sum(model.x[day - 1, person, job] for job in model.index_jobs) for day in single_day_weekend_indexes)
-        <= max_single_weekend_days
-    )
-    model.balance_weekend_days.add(
-        min_single_weekend_days
-        <= sum(sum(model.x[day - 1, person, job] for job in model.index_jobs) for day in single_day_weekend_indexes)
-    )
-my_print([''])
+if single_day_weekend_indexes:
+    model.balance_single_weekend_days = pyo.ConstraintList()
+    my_print(['OBJECTIF JOURS WEEKEND SINGLE'])
+    for person in model.index_people:
+        min_single_weekend_days, max_single_weekend_days = get_single_weekend_days_goal(person)
+        print(person, people_names[person], min_single_weekend_days, max_single_weekend_days)
+        model.balance_single_weekend_days.add(
+            sum(sum(model.x[day - 1, person, job] for job in model.index_jobs) for day in single_day_weekend_indexes)
+            <= max_single_weekend_days
+        )
+        model.balance_weekend_days.add(
+            min_single_weekend_days
+            <= sum(sum(model.x[day - 1, person, job] for job in model.index_jobs) for day in single_day_weekend_indexes)
+        )
+    my_print([''])
 
 model.balance_echo_pay = pyo.ConstraintList()
 my_print(['OBJECTIFS SALAIRES ECHO'])
@@ -559,6 +574,8 @@ def run_with_time_limit(seconds, send_email=True):
     solver = pyo.SolverFactory('glpk')
     solved = solver.solve(model, timelimit=seconds)
     my_result, my_planning = transform_solved_model_into_result(model)
+    print(my_result)
+    print(my_planning)
     my_print(['STATUS', str(solved.solver.termination_condition)])
     print_solved_time_info(start_time)
     if send_email:
