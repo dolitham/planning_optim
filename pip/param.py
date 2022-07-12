@@ -1,6 +1,6 @@
 #%% INPUT FILE
 
-sheet_start_month = 7
+sheet_start_month = 9
 sheet_start_year = 2022
 
 #%% OPTIM / MODEL PARAMETERS
@@ -35,6 +35,9 @@ default_cycle_start_days = {0, 3}
 pay = {hospit_echo_name: 2 / 3, echo_name: 1}
 
 lousy_sequence = [consult_name, hospit_solo_name]
+jobs_exceptions = {'Esther': {hospit_echo_name: [0, 2, 3, 4, 5]}}
+#jobs_exceptions = {}
+
 
 shift_mort_length = 4
 shift_mort_name = consult_name
@@ -45,7 +48,6 @@ olivier_sheet_id = '1e-b3kbXg8_xdyO6vtlhIiYXokBZSrrCawRZnvg5K8wk'
 calendar_sheet_range = 'Input Logiciel!A1:ZZ10'
 stats_sheet_range = 'Statistiques!A1:K7'
 sandbox_sheet_range = 'Sandbox!A1:K7'
-cwd = '/Users/julie/PycharmProjects/misc/pip/'
 files_directory = 'excel/'
 excel_files_suffix = '.xlsx'
-jobs_path = cwd + "jobs.csv"
+
