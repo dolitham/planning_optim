@@ -1,0 +1,5 @@
+/venv
+*/private_param.py
+/planning_optim/*
+/planning_optim/*.json
+/planning_optim/pip/excel/
