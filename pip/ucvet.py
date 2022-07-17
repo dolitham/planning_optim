@@ -574,7 +574,7 @@ def run_with_time_limit(seconds, send_email=True):
     if executable_directory_solver:
         solver = pyo.SolverFactory(solver_name, executable=solverpath_exe)
     else:
-        solver = pyo.solverFactory(solver_name)
+        solver = pyo.SolverFactory(solver_name)
     solved = solver.solve(model, timelimit=seconds)
     my_result, my_planning = transform_solved_model_into_result(model)
     print(my_result)
