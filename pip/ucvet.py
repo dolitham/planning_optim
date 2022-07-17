@@ -10,12 +10,12 @@ import pyomo.environ as pyo
 import pandas as pd
 import numpy as np
 
+from private_param import *
 from reader import get_calendar_input, get_current_stats, read_param_jobs
 from param import *
 from writer import my_print, save_planning
 
 locale.setlocale(locale.LC_TIME, "fr_FR")
-pd.set_option("max_columns", 10)
 pd.options.display.float_format = '€{:,.2f}'.format
 
 # %% FILES READING + DIRECT INFERENCES
@@ -138,7 +138,7 @@ my_print(['AVAILABILITY - NB JOURS RETIRES PAR DÉFAUT SI PAS DE VACS :', nb_j_o
 my_print(['AVAILABILITY'], end_char=' : ')
 my_series_print(availability)
 
-  
+
 # %% GOAL FUNCTIONS
 
 
@@ -571,7 +571,10 @@ def run_with_time_limit(seconds, send_email=True):
     start_time = print_time_limit_info(seconds)
     run_id = pd.Series(param_holidays.index).dt.strftime("%B").mode()[0].title() + start_time.strftime('_%d_%H%M%S')
     my_print(['RUN ID', run_id], end_char='\n')
-    solver = pyo.SolverFactory('glpk')
+    if executable_directory_solver:
+        solver = pyo.SolverFactory(solver_name, executable=solverpath_exe)
+    else:
+        solver = pyo.solverFactory(solver_name)
     solved = solver.solve(model, timelimit=seconds)
     my_result, my_planning = transform_solved_model_into_result(model)
     print(my_result)

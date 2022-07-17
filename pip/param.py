@@ -5,7 +5,7 @@ sheet_start_year = 2022
 
 #%% OPTIM / MODEL PARAMETERS
 
-time_limit_minutes = 12
+time_limit_minutes = 2
 
 weekend_cost = 5
 flexible_request_cost = 100
@@ -13,14 +13,14 @@ malus_no_consult = 50
 
 #%% BALANCE  & FORBID
 
-forbid_single_day_shifts = False
+forbid_single_day_shifts = True
 max_we_in_a_row = 2
 breaks = dict({7: [2, 2, 2, 2, 2]})  # 10: [3, 3, 3, 3, 3]
 nb_max_consecutive_days = [5, 5, 5, 5, 5]
 
 nb_j_off_default = 5
-threshold_prorata_holidays = 9
-tolerance = dict({'echo_pay': 5, 'hospit_days': 4, 'flat_rate_days': 10, 'single_we': 2, 'we_days': 5,
+threshold_prorata_holidays = 8
+tolerance = dict({'echo_pay': 2, 'hospit_days': 2, 'flat_rate_days': 4, 'single_we': 1, 'we_days': 3,
                   'echo_percentage': 1000})
 
 #%% JOB NAMES
@@ -35,8 +35,8 @@ default_cycle_start_days = {0, 3}
 pay = {hospit_echo_name: 2 / 3, echo_name: 1}
 
 lousy_sequence = [consult_name, hospit_solo_name]
-jobs_exceptions = {'Esther': {hospit_echo_name: [0, 2, 3, 4, 5]}}
-#jobs_exceptions = {}
+#jobs_exceptions = {'Esther': {hospit_echo_name: [0, 2, 3, 4, 5]}}
+jobs_exceptions = {}
 
 
 shift_mort_length = 4
